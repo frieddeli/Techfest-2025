@@ -1,0 +1,128 @@
+/**
+ * @fileoverview Styles for the Fact Checker extension popup.
+ */
+
+/* Variables */
+:root {
+  --primary-color: #4CAF50;
+  --primary-hover-color: #45a049;
+  --text-color: #333;
+  --background-color: #f5f5f5;
+  --card-background: #fff;
+  --border-color: #ccc;
+  --error-color: #f44336;
+  --border-radius: 5px;
+  --box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --box-shadow-hover: 0 6px 12px rgba(0, 0, 0, 0.2);
+  --popup-width: 350px;
+  --input-max-width: 300px;
+}
+
+/* Base styles */
+body {
+  width: var(--popup-width);
+  padding: 20px;
+  font-family: 'Arial', sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Header styles */
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 10px;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0 0 20px 0;
+  color: var(--primary-color);
+  text-align: center;
+}
+
+/* API Key section styles */
+#apiKeySection {
+  background-color: var(--card-background);
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: var(--box-shadow);
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: var(--popup-width);
+  transition: box-shadow 0.3s ease;
+}
+
+#apiKeySection:hover {
+  box-shadow: var(--box-shadow-hover);
+}
+
+/* Form element styles */
+label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: bold;
+  text-align: center;
+}
+
+input[type="text"] {
+  width: 100%;
+  max-width: var(--input-max-width);
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-sizing: border-box;
+  text-align: center;
+}
+
+button {
+  width: 100%;
+  max-width: var(--input-max-width);
+  padding: 10px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 16px;
+  text-align: center;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: var(--primary-hover-color);
+}
+
+/* Status message styles */
+#status {
+  margin-top: 20px;
+  font-style: italic;
+  text-align: center;
+  min-height: 20px;
+}
+
+#status.success {
+  color: var(--primary-color);
+}
+
+#status.error {
+  color: var(--error-color);
+}
