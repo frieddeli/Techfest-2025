@@ -127,16 +127,61 @@
     const colorCode = getColorForTruth(data.truthPercentage);
     console.log('Truth color:', colorCode);
     
+    // Check if we have both Perplexity and Groq results
+    const hasMultipleResults = data.factCheck.includes('(Perplexity)') && data.factCheck.includes('(Groq)');
+    
+    let factCheckContent = '';
+    let contextContent = '';
+    
+    if (hasMultipleResults) {
+      // Split the fact check and context sections
+      const perplexityFactCheck = data.factCheck.split('Fact Check (Groq)')[0].replace('Fact Check (Perplexity):', '').trim();
+      const groqFactCheck = data.factCheck.split('Fact Check (Groq):')[1].trim();
+      
+      factCheckContent = `
+        <h4>Fact Check (Perplexity):</h4>
+        <p>${perplexityFactCheck}</p>
+        <h4>Fact Check (Groq):</h4>
+        <p>${groqFactCheck}</p>
+      `;
+      
+      if (data.context.includes('Additional Context')) {
+        const mainContext = data.context.split('Additional Context')[0].trim();
+        const additionalContext = data.context.split('Additional Context:')[1].trim();
+        
+        contextContent = `
+          <h4>Context:</h4>
+          <p>${mainContext}</p>
+          <h4>Additional Context:</h4>
+          <p>${additionalContext}</p>
+        `;
+      } else {
+        contextContent = `
+          <h4>Context:</h4>
+          <p>${data.context}</p>
+        `;
+      }
+    } else {
+      // Single result format
+      factCheckContent = `
+        <h4>Fact Check:</h4>
+        <p>${data.factCheck}</p>
+      `;
+      
+      contextContent = `
+        <h4>Context:</h4>
+        <p>${data.context}</p>
+      `;
+    }
+    
     resultContainer.innerHTML = `
       <div class="fact-check-header">
         <h2>Fact Checker</h2>
         <button id="${CLOSE_BTN_ID}">×</button>
       </div>
       <h3 id="${TRUTH_METER_ID}">Truth Percentage: <span style="color: ${colorCode} !important;">${data.truthPercentage}</span></h3>
-      <h4>Fact Check:</h4>
-      <p>${data.factCheck}</p>
-      <h4>Context:</h4>
-      <p>${data.context}</p>
+      ${factCheckContent}
+      ${contextContent}
       <h4>Sources:</h4>
       <ol>
         ${data.sources.map(source => `<li value="${source.index}"><a href="${source.url}" target="_blank">${source.title}</a></li>`).join('')}
@@ -334,16 +379,36 @@
    * @returns {string} The formatted text for copying
    */
   function formatForClipboard(data) {
-    return `
-Truth Percentage: ${data.truthPercentage}
-
-Fact Check: ${data.factCheck}
-
-Context: ${data.context}
-
-Sources:
-${data.sources.map(source => `${source.index}. ${source.title} - ${source.url}`).join('\n')}
-    `.trim();
+    // Check if we have both Perplexity and Groq results
+    const hasMultipleResults = data.factCheck.includes('(Perplexity)') && data.factCheck.includes('(Groq)');
+    
+    let formattedText = `Truth Percentage: ${data.truthPercentage}\n\n`;
+    
+    if (hasMultipleResults) {
+      // Split the fact check and context sections
+      const perplexityFactCheck = data.factCheck.split('Fact Check (Groq)')[0].replace('Fact Check (Perplexity):', '').trim();
+      const groqFactCheck = data.factCheck.split('Fact Check (Groq):')[1].trim();
+      
+      formattedText += `Fact Check (Perplexity): ${perplexityFactCheck}\n\n`;
+      formattedText += `Fact Check (Groq): ${groqFactCheck}\n\n`;
+      
+      if (data.context.includes('Additional Context')) {
+        const mainContext = data.context.split('Additional Context')[0].trim();
+        const additionalContext = data.context.split('Additional Context:')[1].trim();
+        
+        formattedText += `Context: ${mainContext}\n\n`;
+        formattedText += `Additional Context: ${additionalContext}\n\n`;
+      } else {
+        formattedText += `Context: ${data.context}\n\n`;
+      }
+    } else {
+      formattedText += `Fact Check: ${data.factCheck}\n\n`;
+      formattedText += `Context: ${data.context}\n\n`;
+    }
+    
+    formattedText += `Sources:\n${data.sources.map(source => `${source.index}. ${source.title} - ${source.url}`).join('\n')}`;
+    
+    return formattedText.trim();
   }
 
   /**

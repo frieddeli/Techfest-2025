@@ -85,6 +85,23 @@ h1 {
   box-shadow: var(--shadow-hover);
 }
 
+#apiKeySection label {
+  margin-top: 15px;
+  margin-bottom: 5px;
+}
+
+#apiKeySection label:first-child {
+  margin-top: 0;
+}
+
+#apiKeySection input {
+  margin-bottom: 15px;
+}
+
+#apiKeySection button {
+  margin-top: 10px;
+}
+
 /* Query section styles */
 #querySection {
   background-color: var(--card-bg);

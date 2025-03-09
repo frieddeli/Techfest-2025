@@ -14,13 +14,20 @@
   
   <div id="apiKeySection" class="hidden">
     <label for="apiKey">Enter your Perplexity API Key:</label>
-    <input type="text" id="apiKey" placeholder="API Key">
-    <button id="saveApiKey">Save</button>
+    <input type="text" id="apiKey" placeholder="Perplexity API Key">
+    
+    <label for="groqApiKey">Enter your Groq API Key:</label>
+    <input type="text" id="groqApiKey" placeholder="Groq API Key">
+    
+    <label for="toolhouseApiKey">Enter your Toolhouse API Key:</label>
+    <input type="text" id="toolhouseApiKey" placeholder="Toolhouse API Key">
+    
+    <button id="saveApiKey">Save All Keys</button>
   </div>
   
   <div id="querySection">
     <label for="queryText">Enter text to fact check:</label>
-    <textarea id="queryText" rows="10" placeholder="Enter text to fact check with Perplexity AI..."></textarea>
+    <textarea id="queryText" rows="10" placeholder="Enter text to fact check with AI (Perplexity & Groq)..."></textarea>
     <button id="submitQuery">Check Facts</button>
   </div>
   

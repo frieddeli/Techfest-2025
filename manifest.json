@@ -10,7 +10,9 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://api.perplexity.ai/*"
+    "https://api.perplexity.ai/*",
+    "https://api.groq.com/*",
+    "https://api.toolhouse.ai/*"
   ],
   "background": {
     "service_worker": "background.js",
