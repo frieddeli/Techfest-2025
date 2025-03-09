@@ -14,6 +14,8 @@
 ✅ **Fact-Checking Insights** – Detects **misleading claims, manipulated quotes, and false statistics**.  
 ✅ **Cited Sources** – Lists **verified references** to support fact-checking.  
 ✅ **Deepfake Video Detection** – Identifies **altered content in videos**.  
+✅ **Cited Sources** – Uses **Toolhouse API** to provide **reliable references** to verify claims.  
+✅ **Multi-AI Validation** – Cross-checks facts using **Perplexity AI & Groq AI** for **improved accuracy**.  
 ✅ **Right-Click Integration** – **Instantly fact-check** without switching tabs.  
 ✅ **Dark Mode Support** – Works in both **light and dark themes**.  
 
@@ -73,21 +75,27 @@ Since this extension is not available in the Chrome Web Store, follow these step
 
 ## **🛠️ Tech Stack**  
 
-### **Languages & Core Technologies**  
-- **JavaScript** – Core functionality of the extension.  
+### **Programming Languages & Core Technologies**  
+- **JavaScript** – The main programming language used for the extension's functionality.  
   - Files: `content.js`, `background.js`, `popup.js`.  
-- **HTML & CSS** – Used for the UI design.  
+- **HTML & CSS** – Used to create and style the popup interface.  
   - Files: `popup.html`, `styles.css`.  
 
-### **APIs & Services**  
-- **Perplexity AI API** – Generates **truth scores, fact-checking insights, and sources**.  
-- **Chrome Extensions API** – Handles **context menus, background tasks, and UI interactions**.  
+### **Chrome Extensions API:**  
+- Used for creating **context menus, injecting scripts, and handling background tasks**.  
+- **Manifest File:** `manifest.json` – Defines permissions, background scripts, and extension behavior.  
+
+### **External APIs & AI Services**  
+- **Perplexity AI API** – Used for **fact-checking selected text** and generating truth scores.  
+- **Groq API** – Another AI-powered fact-checking service for **cross-validation**.  
+- **Toolhouse API** – Searches the web for **reliable sources** to verify claims.  
 
 ### **Browser Features**  
-- **Clipboard API** – Copies fact-check results.  
-- **DOM Manipulation** – Dynamically updates UI elements.  
-- **Event Listeners** – Detects user actions (e.g., right-click, button clicks).  
+- **Clipboard API** – Allows users to **copy fact-check results** for reference.  
+- **DOM Manipulation** – Used for dynamically updating UI elements in the extension.  
 
+### **Event Handling**  
+- **Event Listeners** detect user interactions like **button clicks and context menu selections**.  
 ---
 
 ## **⚡ Challenges & Improvements**  
