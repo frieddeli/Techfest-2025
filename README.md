@@ -61,6 +61,10 @@ Since this extension is not available in the Chrome Web Store, follow these step
 3️⃣ Click **"Check Facts"** to receive results.  
 
 
+![image](https://github.com/user-attachments/assets/ea2788fc-b18e-43b2-8b79-acb2dfa70584)![image](https://github.com/user-attachments/assets/f6228f30-b07e-4277-aa8e-b1d064b49a72)
+
+
+
 
 ### **It even works with Highly Technical Subjects, being able to cite datasheets** 
 
