@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const resultSection = document.getElementById('resultSection');
   const factCheckResult = document.getElementById('factCheckResult');
   const statusMsg = document.getElementById('status');
+  const checkVideoBtn = document.getElementById('checkVideoBtn');
 
   // Get additional API key inputs
   const groqKeyInput = document.getElementById('groqApiKey');
@@ -71,6 +72,98 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       showStatus(statusMsg, 'Please enter text to fact check.', 'error');
     }
+  });
+  
+  // Check if current tab is YouTube and show the Check Video button if it is
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    if (tabs.length > 0) {
+      const url = tabs[0].url;
+      if (url && url.includes('youtube.com/watch')) {
+        checkVideoBtn.classList.remove('hidden');
+      }
+    }
+  });
+  
+  // Add event listener for the Check Video button
+  checkVideoBtn.addEventListener('click', () => {
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+      if (tabs.length === 0) {
+        showStatus(statusMsg, 'No active tab found', 'error');
+        return;
+      }
+      
+      const tabId = tabs[0].id;
+      
+      // First check if content script is already injected
+      chrome.tabs.sendMessage(tabId, { action: 'checkInjection' }, (response) => {
+        const injectAndSendMessage = () => {
+          // Inject the content script
+          chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            files: ['content.js']
+          }, () => {
+            if (chrome.runtime.lastError) {
+              console.error('Error injecting script:', chrome.runtime.lastError);
+              showStatus(statusMsg, `Error: ${chrome.runtime.lastError.message}`, 'error');
+              return;
+            }
+            
+            // Send message to content script to scrape YouTube transcript
+            console.log('Content script injected, sending message to scrape transcript:', tabId);
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tabId, {
+                action: 'scrapeYouTubeTranscript'
+              }, (response) => {
+                if (chrome.runtime.lastError) {
+                  console.error('Error sending message:', chrome.runtime.lastError);
+                  showStatus(statusMsg, `Error: ${chrome.runtime.lastError.message}`, 'error');
+                } else {
+                  console.log('Message sent successfully, response:', response);
+                  if (response && response.success) {
+                    showStatus(statusMsg, 'Transcript scraped successfully!', 'success');
+                    
+                    // If transcript was found, populate the query textarea with it
+                    if (response.transcript) {
+                      queryTextarea.value = response.transcript;
+                    }
+                  } else {
+                    showStatus(statusMsg, response?.error || 'Failed to scrape transcript', 'error');
+                  }
+                }
+              });
+            }, 500); // Give the content script time to initialize
+          });
+        };
+        
+        if (chrome.runtime.lastError || !response || !response.injected) {
+          console.log('Content script not injected, injecting now');
+          injectAndSendMessage();
+        } else {
+          console.log('Content script already injected, sending message directly');
+          chrome.tabs.sendMessage(tabId, {
+            action: 'scrapeYouTubeTranscript'
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('Error sending message to existing content script:', chrome.runtime.lastError);
+              // Try injecting the script anyway
+              injectAndSendMessage();
+            } else {
+              console.log('Message sent successfully to existing content script, response:', response);
+              if (response && response.success) {
+                showStatus(statusMsg, 'Transcript scraped successfully!', 'success');
+                
+                // If transcript was found, populate the query textarea with it
+                if (response.transcript) {
+                  queryTextarea.value = response.transcript;
+                }
+              } else {
+                showStatus(statusMsg, response?.error || 'Failed to scrape transcript', 'error');
+              }
+            }
+          });
+        }
+      });
+    });
   });
 });
 
