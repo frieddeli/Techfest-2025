@@ -1,7 +1,8 @@
 ## **📰 inFact – AI-Powered Fact-Checking Chrome Extension**  
 
 **Verify online information instantly with AI. Get truth scores, fact-checking insights, and cited sources—directly in your browser.**
-**THis was created as part of the CCDS 2025 Techfest Hackathon**
+
+**This was created as part of the CCDS 2025 Techfest Hackathon**
 
 ![UI Preview](insert-image-url-here)  
 
