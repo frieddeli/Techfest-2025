@@ -62,6 +62,12 @@ Since this extension is not available in the Chrome Web Store, follow these step
 
 ![image](https://github.com/user-attachments/assets/af02a3a0-ca2f-4d47-a2c6-2b4f5fd29e6d)![image](https://github.com/user-attachments/assets/b261825e-149f-4b1a-95be-0db92c18d66f)
 
+** It even works with Highly Technical Subjects, being able to cite datasheets ** 
+
+![image](https://github.com/user-attachments/assets/513e7c47-932a-426e-bde5-dc7ca6e47f11)![image](https://github.com/user-attachments/assets/b186af67-d14c-438e-a577-076aaf83ba4b)
+
+
+
 
 ---
 
