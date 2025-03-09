@@ -5,14 +5,14 @@
 
 (function() {
   // Constants
-  const BOX_ID = 'perplexity-fact-check-box';
-  const CLOSE_BUTTON_ID = 'close-fact-check';
-  const COPY_BUTTON_ID = 'copy-result';
-  const TRUTH_PERCENTAGE_ID = 'truth-percentage';
-  const MIN_BOX_SIZE = 200;
-  const EDGE_THRESHOLD = 10;
-  const CLOSE_BUTTON_DELAY = 100;
-  const COPY_BUTTON_RESET_DELAY = 2000;
+  const CONTAINER_ID = 'perplexity-fact-check-box';
+  const CLOSE_BTN_ID = 'close-fact-check';
+  const COPY_BTN_ID = 'copy-result';
+  const TRUTH_METER_ID = 'truth-percentage';
+  const MIN_SIZE = 200;
+  const EDGE_MARGIN = 10;
+  const BTN_DELAY = 100;
+  const COPY_RESET_DELAY = 2000;
   
   // Prevent multiple injections
   if (window.perplexityFactCheckerInjected) {
@@ -21,7 +21,7 @@
   window.perplexityFactCheckerInjected = true;
 
   // State variables
-  let factCheckBox = null;
+  let resultContainer = null;
 
   /**
    * Listens for messages from the background script.
@@ -33,13 +33,13 @@
         sendResponse({ injected: true });
         break;
       case 'showLoading':
-        showLoading();
+        displayLoader();
         break;
       case 'factCheckResult':
-        showFactCheckResult(request.data);
+        displayResult(request.data);
         break;
       case 'factCheckError':
-        showError(request.error);
+        displayError(request.error);
         break;
     }
   });
@@ -47,20 +47,20 @@
   /**
    * Shows loading indicator in the fact check box.
    */
-  function showLoading() {
-    if (!factCheckBox) {
-      factCheckBox = createFactCheckBox();
+  function displayLoader() {
+    if (!resultContainer) {
+      resultContainer = createContainer();
     }
-    factCheckBox.innerHTML = `
+    resultContainer.innerHTML = `
       <div class="fact-check-header">
         <h2>Fact Checker</h2>
-        <button id="${CLOSE_BUTTON_ID}">×</button>
+        <button id="${CLOSE_BTN_ID}">×</button>
       </div>
       <p>Loading... This may take a few moments.</p>
       <div class="loader"></div>
     `;
-    factCheckBox.style.display = 'block';
-    addCloseButtonListener();
+    resultContainer.style.display = 'block';
+    setupCloseButton();
   }
 
   /**
@@ -68,13 +68,13 @@
    * 
    * @param {string} result - The raw fact check result from the API
    */
-  function showFactCheckResult(result) {
+  function displayResult(result) {
     console.log('Showing fact check result:', result);
-    if (!factCheckBox) {
-      factCheckBox = createFactCheckBox();
+    if (!resultContainer) {
+      resultContainer = createContainer();
     }
-    const parsedResult = parseFactCheckResult(result);
-    updateFactCheckBox(parsedResult);
+    const parsedData = parseResult(result);
+    updateContainer(parsedData);
   }
 
   /**
@@ -82,44 +82,44 @@
    * 
    * @returns {HTMLElement} The created fact check box
    */
-  function createFactCheckBox() {
+  function createContainer() {
     const box = document.createElement('div');
-    box.id = BOX_ID;
+    box.id = CONTAINER_ID;
     document.body.appendChild(box);
-    makeDraggableAndResizable(box);
+    makeInteractive(box);
     return box;
   }
 
   /**
    * Updates the fact check box with the parsed result.
    * 
-   * @param {Object} result - The parsed fact check result
+   * @param {Object} data - The parsed fact check result
    */
-  function updateFactCheckBox(result) {
-    console.log('Updating fact check box with:', result);
-    const truthColor = getTruthColor(result.truthPercentage);
-    console.log('Truth color:', truthColor);
+  function updateContainer(data) {
+    console.log('Updating fact check box with:', data);
+    const colorCode = getColorForTruth(data.truthPercentage);
+    console.log('Truth color:', colorCode);
     
-    factCheckBox.innerHTML = `
+    resultContainer.innerHTML = `
       <div class="fact-check-header">
         <h2>Fact Checker</h2>
-        <button id="${CLOSE_BUTTON_ID}">×</button>
+        <button id="${CLOSE_BTN_ID}">×</button>
       </div>
-      <h3 id="${TRUTH_PERCENTAGE_ID}">Truth Percentage: <span style="color: ${truthColor} !important;">${result.truthPercentage}</span></h3>
+      <h3 id="${TRUTH_METER_ID}">Truth Percentage: <span style="color: ${colorCode} !important;">${data.truthPercentage}</span></h3>
       <h4>Fact Check:</h4>
-      <p>${result.factCheck}</p>
+      <p>${data.factCheck}</p>
       <h4>Context:</h4>
-      <p>${result.context}</p>
+      <p>${data.context}</p>
       <h4>Sources:</h4>
       <ol>
-        ${result.sources.map(source => `<li value="${source.index}"><a href="${source.url}" target="_blank">${source.title}</a></li>`).join('')}
+        ${data.sources.map(source => `<li value="${source.index}"><a href="${source.url}" target="_blank">${source.title}</a></li>`).join('')}
       </ol>
-      <button id="${COPY_BUTTON_ID}">Copy Result</button>
+      <button id="${COPY_BTN_ID}">Copy Result</button>
     `;
     
-    factCheckBox.style.display = 'block';
-    addCloseButtonListener();
-    addCopyButtonListener(result);
+    resultContainer.style.display = 'block';
+    setupCloseButton();
+    setupCopyButton(data);
   }
 
   /**
@@ -128,11 +128,11 @@
    * @param {string} result - The raw fact check result from the API
    * @returns {Object} The parsed result with truthPercentage, factCheck, context, and sources
    */
-  function parseFactCheckResult(result) {
+  function parseResult(result) {
     console.log('Parsing raw result:', result);
 
     const sections = result.split('\n\n');
-    const parsedResult = {
+    const data = {
       truthPercentage: 'N/A',
       factCheck: 'No fact check provided.',
       context: 'No context provided.',
@@ -144,39 +144,39 @@
     sections.forEach(section => {
       if (section.startsWith('Sources:')) {
         currentSection = 'sources';
-        parseSourcesSection(section, parsedResult);
+        extractSources(section, data);
       } else if (section.startsWith('Truth:')) {
         currentSection = 'truth';
-        parsedResult.truthPercentage = section.split(':')[1].trim();
+        data.truthPercentage = section.split(':')[1].trim();
       } else if (section.startsWith('Fact Check:')) {
         currentSection = 'factCheck';
-        parsedResult.factCheck = section.split(':').slice(1).join(':').trim();
+        data.factCheck = section.split(':').slice(1).join(':').trim();
       } else if (section.startsWith('Context:')) {
         currentSection = 'context';
-        parsedResult.context = section.split(':').slice(1).join(':').trim();
+        data.context = section.split(':').slice(1).join(':').trim();
       } else if (currentSection === 'factCheck') {
-        parsedResult.factCheck += ' ' + section.trim();
+        data.factCheck += ' ' + section.trim();
       } else if (currentSection === 'context') {
-        parsedResult.context += ' ' + section.trim();
+        data.context += ' ' + section.trim();
       }
     });
 
-    console.log('Parsed result:', parsedResult);
+    console.log('Parsed result:', data);
 
     // Replace source references with hyperlinks
-    parsedResult.factCheck = replaceSourceReferences(parsedResult.factCheck, parsedResult.sources);
-    parsedResult.context = replaceSourceReferences(parsedResult.context, parsedResult.sources);
+    data.factCheck = linkifyReferences(data.factCheck, data.sources);
+    data.context = linkifyReferences(data.context, data.sources);
 
-    return parsedResult;
+    return data;
   }
 
   /**
    * Parses the sources section of the fact check result.
    * 
    * @param {string} section - The sources section text
-   * @param {Object} parsedResult - The result object to update with sources
+   * @param {Object} data - The result object to update with sources
    */
-  function parseSourcesSection(section, parsedResult) {
+  function extractSources(section, data) {
     const sourceLines = section.split('\n').slice(1);
     console.log('Source lines:', sourceLines);
     
@@ -186,9 +186,9 @@
         const [, index, content] = match;
         const urlMatch = content.match(/\[(.+?)\]\((.+?)\)/);
         if (urlMatch) {
-          parsedResult.sources.push({ index, title: urlMatch[1], url: urlMatch[2] });
+          data.sources.push({ index, title: urlMatch[1], url: urlMatch[2] });
         } else {
-          parsedResult.sources.push({ index, title: content, url: '#' });
+          data.sources.push({ index, title: content, url: '#' });
         }
       }
     });
@@ -201,7 +201,7 @@
    * @param {Array} sources - The array of source objects
    * @returns {string} The text with source references replaced with hyperlinks
    */
-  function replaceSourceReferences(text, sources) {
+  function linkifyReferences(text, sources) {
     return text.replace(/\[(\d+(?:,\s*\d+)*)\]/g, (match, p1) => {
       const indices = p1.split(',').map(s => s.trim());
       const links = indices.map(index => {
@@ -221,7 +221,7 @@
    * @param {string} percentage - The truth percentage
    * @returns {string} The color for the truth percentage
    */
-  function getTruthColor(percentage) {
+  function getColorForTruth(percentage) {
     console.log('Received percentage:', percentage);
     const value = parseInt(percentage);
     console.log('Parsed value:', value);
@@ -242,57 +242,57 @@
    * 
    * @param {string} message - The error message to display
    */
-  function showError(message) {
+  function displayError(message) {
     console.error('Showing error:', message);
-    if (!factCheckBox) {
-      factCheckBox = createFactCheckBox();
+    if (!resultContainer) {
+      resultContainer = createContainer();
     }
-    factCheckBox.innerHTML = `
+    resultContainer.innerHTML = `
       <div class="fact-check-header">
         <h2>Error</h2>
-        <button id="${CLOSE_BUTTON_ID}">×</button>
+        <button id="${CLOSE_BTN_ID}">×</button>
       </div>
       <p>${message}</p>
     `;
-    factCheckBox.style.display = 'block';
-    addCloseButtonListener();
+    resultContainer.style.display = 'block';
+    setupCloseButton();
   }
 
   /**
    * Adds a click listener to the close button.
    */
-  function addCloseButtonListener() {
+  function setupCloseButton() {
     setTimeout(() => {
-      const closeButton = document.getElementById(CLOSE_BUTTON_ID);
-      if (closeButton) {
+      const closeBtn = document.getElementById(CLOSE_BTN_ID);
+      if (closeBtn) {
         console.log('Close button found, adding event listener');
-        closeButton.addEventListener('click', () => {
+        closeBtn.addEventListener('click', () => {
           console.log('Close button clicked');
-          if (factCheckBox) {
-            factCheckBox.style.display = 'none';
+          if (resultContainer) {
+            resultContainer.style.display = 'none';
           }
         });
       } else {
         console.log('Close button not found');
       }
-    }, CLOSE_BUTTON_DELAY);
+    }, BTN_DELAY);
   }
 
   /**
    * Adds a click listener to the copy button.
    * 
-   * @param {Object} result - The parsed fact check result
+   * @param {Object} data - The parsed fact check result
    */
-  function addCopyButtonListener(result) {
-    const copyButton = document.getElementById(COPY_BUTTON_ID);
-    if (copyButton) {
-      copyButton.addEventListener('click', () => {
-        const textToCopy = formatTextForCopy(result);
-        navigator.clipboard.writeText(textToCopy).then(() => {
-          copyButton.textContent = 'Copied!';
+  function setupCopyButton(data) {
+    const copyBtn = document.getElementById(COPY_BTN_ID);
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        const formattedText = formatForClipboard(data);
+        navigator.clipboard.writeText(formattedText).then(() => {
+          copyBtn.textContent = 'Copied!';
           setTimeout(() => {
-            copyButton.textContent = 'Copy Result';
-          }, COPY_BUTTON_RESET_DELAY);
+            copyBtn.textContent = 'Copy Result';
+          }, COPY_RESET_DELAY);
         });
       });
     }
@@ -301,19 +301,19 @@
   /**
    * Formats the result for copying to clipboard.
    * 
-   * @param {Object} result - The parsed fact check result
+   * @param {Object} data - The parsed fact check result
    * @returns {string} The formatted text for copying
    */
-  function formatTextForCopy(result) {
+  function formatForClipboard(data) {
     return `
-Truth Percentage: ${result.truthPercentage}
+Truth Percentage: ${data.truthPercentage}
 
-Fact Check: ${result.factCheck}
+Fact Check: ${data.factCheck}
 
-Context: ${result.context}
+Context: ${data.context}
 
 Sources:
-${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}`).join('\n')}
+${data.sources.map(source => `${source.index}. ${source.title} - ${source.url}`).join('\n')}
     `.trim();
   }
 
@@ -331,26 +331,26 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
    * 
    * @param {HTMLElement} element - The element to make draggable and resizable
    */
-  function makeDraggableAndResizable(element) {
+  function makeInteractive(element) {
     let isResizing = false;
     let isDragging = false;
     let startX, startY, startWidth, startHeight, startLeft, startTop;
     let resizeDirection = '';
 
-    element.addEventListener('mousedown', startDragOrResize);
-    document.addEventListener('mousemove', dragOrResize);
-    document.addEventListener('mouseup', stopDragOrResize);
-    element.addEventListener('mousemove', updateCursor);
+    element.addEventListener('mousedown', startInteraction);
+    document.addEventListener('mousemove', handleInteraction);
+    document.addEventListener('mouseup', endInteraction);
+    element.addEventListener('mousemove', updateMouseCursor);
 
     /**
      * Starts dragging or resizing the element.
      * 
      * @param {MouseEvent} e - The mouse event
      */
-    function startDragOrResize(e) {
-      if (isNearEdge(e, element)) {
+    function startInteraction(e) {
+      if (isNearBorder(e, element)) {
         isResizing = true;
-        resizeDirection = getResizeDirection(e, element);
+        resizeDirection = getDirection(e, element);
       } else {
         isDragging = true;
       }
@@ -368,11 +368,11 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
      * 
      * @param {MouseEvent} e - The mouse event
      */
-    function dragOrResize(e) {
+    function handleInteraction(e) {
       if (isResizing) {
-        resize(e);
+        handleResize(e);
       } else if (isDragging) {
-        drag(e);
+        handleDrag(e);
       }
     }
 
@@ -381,22 +381,22 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
      * 
      * @param {MouseEvent} e - The mouse event
      */
-    function resize(e) {
+    function handleResize(e) {
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
 
       if (resizeDirection.includes('w')) {
-        element.style.width = `${Math.max(MIN_BOX_SIZE, startWidth - dx)}px`;
+        element.style.width = `${Math.max(MIN_SIZE, startWidth - dx)}px`;
         element.style.left = `${startLeft + dx}px`;
       } else if (resizeDirection.includes('e')) {
-        element.style.width = `${Math.max(MIN_BOX_SIZE, startWidth + dx)}px`;
+        element.style.width = `${Math.max(MIN_SIZE, startWidth + dx)}px`;
       }
 
       if (resizeDirection.includes('n')) {
-        element.style.height = `${Math.max(MIN_BOX_SIZE, startHeight - dy)}px`;
+        element.style.height = `${Math.max(MIN_SIZE, startHeight - dy)}px`;
         element.style.top = `${startTop + dy}px`;
       } else if (resizeDirection.includes('s')) {
-        element.style.height = `${Math.max(MIN_BOX_SIZE, startHeight + dy)}px`;
+        element.style.height = `${Math.max(MIN_SIZE, startHeight + dy)}px`;
       }
     }
 
@@ -405,7 +405,7 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
      * 
      * @param {MouseEvent} e - The mouse event
      */
-    function drag(e) {
+    function handleDrag(e) {
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       element.style.left = `${startLeft + dx}px`;
@@ -415,7 +415,7 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
     /**
      * Stops dragging or resizing the element.
      */
-    function stopDragOrResize() {
+    function endInteraction() {
       isResizing = false;
       isDragging = false;
       resizeDirection = '';
@@ -427,8 +427,8 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
      * 
      * @param {MouseEvent} e - The mouse event
      */
-    function updateCursor(e) {
-      const direction = getResizeDirection(e, element);
+    function updateMouseCursor(e) {
+      const direction = getDirection(e, element);
       if (direction) {
         element.style.cursor = getCursorStyle(direction);
       } else {
@@ -443,13 +443,13 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
      * @param {HTMLElement} element - The element to check
      * @returns {boolean} True if the mouse is near an edge
      */
-    function isNearEdge(e, element) {
+    function isNearBorder(e, element) {
       const rect = element.getBoundingClientRect();
       return (
-        e.clientX < rect.left + EDGE_THRESHOLD ||
-        e.clientX > rect.right - EDGE_THRESHOLD ||
-        e.clientY < rect.top + EDGE_THRESHOLD ||
-        e.clientY > rect.bottom - EDGE_THRESHOLD
+        e.clientX < rect.left + EDGE_MARGIN ||
+        e.clientX > rect.right - EDGE_MARGIN ||
+        e.clientY < rect.top + EDGE_MARGIN ||
+        e.clientY > rect.bottom - EDGE_MARGIN
       );
     }
 
@@ -460,15 +460,15 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
      * @param {HTMLElement} element - The element to check
      * @returns {string} The resize direction (n, s, e, w, ne, nw, se, sw)
      */
-    function getResizeDirection(e, element) {
+    function getDirection(e, element) {
       const rect = element.getBoundingClientRect();
       let direction = '';
 
-      if (e.clientY < rect.top + EDGE_THRESHOLD) direction += 'n';
-      else if (e.clientY > rect.bottom - EDGE_THRESHOLD) direction += 's';
+      if (e.clientY < rect.top + EDGE_MARGIN) direction += 'n';
+      else if (e.clientY > rect.bottom - EDGE_MARGIN) direction += 's';
 
-      if (e.clientX < rect.left + EDGE_THRESHOLD) direction += 'w';
-      else if (e.clientX > rect.right - EDGE_THRESHOLD) direction += 'e';
+      if (e.clientX < rect.left + EDGE_MARGIN) direction += 'w';
+      else if (e.clientX > rect.right - EDGE_MARGIN) direction += 'e';
 
       return direction;
     }
@@ -500,20 +500,29 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
   }
 
   /**
+   * Checks if the user's system is in dark mode.
+   * 
+   * @returns {boolean} True if the system is in dark mode
+   */
+  function isDarkMode() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  /**
    * Creates and appends the styles for the fact check box.
    */
   const style = document.createElement('style');
   style.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Satoshi:wght@400;700&display=swap');
 
-    #${BOX_ID} {
+    #${CONTAINER_ID} {
       position: fixed;
       top: 20px;
       right: 20px;
       width: 300px;
       height: 400px;
-      min-width: ${MIN_BOX_SIZE}px;
-      min-height: ${MIN_BOX_SIZE}px;
+      min-width: ${MIN_SIZE}px;
+      min-height: ${MIN_SIZE}px;
       max-width: 80vw;
       max-height: 80vh;
       overflow-y: auto;
@@ -526,45 +535,45 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
       z-index: 9999;
       font-family: 'Satoshi', sans-serif !important;
     }
-    #${BOX_ID} * {
+    #${CONTAINER_ID} * {
       font-family: 'Satoshi', sans-serif !important;
       color: ${isDarkMode() ? 'white' : 'black'} !important;
     }
-    #${BOX_ID} .fact-check-header {
+    #${CONTAINER_ID} .fact-check-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 20px;
     }
-    #${BOX_ID} h2 {
+    #${CONTAINER_ID} h2 {
       margin: 0;
       text-align: center;
       width: 100%;
       font-size: 24px;
     }
-    #${BOX_ID} h3 {
+    #${CONTAINER_ID} h3 {
       text-align: center;
       font-size: 20px;
       margin-top: 0;
       margin-bottom: 25px;
     }
-    #${BOX_ID} h4 {
+    #${CONTAINER_ID} h4 {
       margin-top: 20px;
       margin-bottom: 10px;
       font-size: 18px;
     }
-    #${BOX_ID} p, #${BOX_ID} li {
+    #${CONTAINER_ID} p, #${CONTAINER_ID} li {
       font-size: 14px;
       line-height: 1.4;
     }
-    #${BOX_ID} a {
+    #${CONTAINER_ID} a {
       color: ${isDarkMode() ? '#add8e6' : '#0000EE'} !important;
       text-decoration: none;
     }
-    #${BOX_ID} a:hover {
+    #${CONTAINER_ID} a:hover {
       text-decoration: underline;
     }
-    #${CLOSE_BUTTON_ID} {
+    #${CLOSE_BTN_ID} {
       background: none;
       border: none;
       font-size: 20px;
@@ -574,7 +583,7 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
       top: 10px;
       right: 10px;
     }
-    #${COPY_BUTTON_ID} {
+    #${COPY_BTN_ID} {
       display: block;
       margin-top: 15px;
       padding: 5px 10px;
@@ -585,7 +594,7 @@ ${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}
       cursor: pointer;
       font-size: 14px;
     }
-    #${COPY_BUTTON_ID}:hover {
+    #${COPY_BTN_ID}:hover {
       background-color: #45a049;
     }
     .loader {

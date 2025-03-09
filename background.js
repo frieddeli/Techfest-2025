@@ -4,18 +4,18 @@
  */
 
 // Constants
-const CONTEXT_MENU_ID = 'factCheckAI';
-const API_ENDPOINT = 'https://api.perplexity.ai/chat/completions';
-const API_MODEL = 'sonar';
-const MAX_TOKENS = 2048;
-const TEMPERATURE = 0.1;
+const MENU_ID = 'factCheckAI';
+const API_URL = 'https://api.perplexity.ai/chat/completions';
+const MODEL = 'sonar';
+const TOKEN_LIMIT = 2048;
+const TEMP = 0.1;
 
 /**
  * Creates the context menu item when the extension is installed.
  */
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: CONTEXT_MENU_ID,
+    id: MENU_ID,
     title: 'Fact check with AI',
     contexts: ['selection']
   });
@@ -28,8 +28,8 @@ chrome.runtime.onInstalled.addListener(() => {
  * @param {Object} tab - Information about the current tab
  */
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === CONTEXT_MENU_ID) {
-    checkContentScriptInjection(tab, info.selectionText);
+  if (info.menuItemId === MENU_ID) {
+    verifyScriptInjection(tab, info.selectionText);
   }
 });
 
@@ -39,12 +39,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
  * @param {Object} tab - Information about the current tab
  * @param {string} selectedText - The text selected by the user
  */
-function checkContentScriptInjection(tab, selectedText) {
+function verifyScriptInjection(tab, selectedText) {
   chrome.tabs.sendMessage(tab.id, { action: 'checkInjection' }, (response) => {
     if (chrome.runtime.lastError || !response || !response.injected) {
-      injectContentScript(tab, selectedText);
+      injectScript(tab, selectedText);
     } else {
-      sendFactCheckMessage(tab.id, selectedText, tab.url);
+      initiateFactCheck(tab.id, selectedText, tab.url);
     }
   });
 }
@@ -55,7 +55,7 @@ function checkContentScriptInjection(tab, selectedText) {
  * @param {Object} tab - Information about the current tab
  * @param {string} selectedText - The text selected by the user
  */
-function injectContentScript(tab, selectedText) {
+function injectScript(tab, selectedText) {
   chrome.scripting.executeScript({
     target: { tabId: tab.id },
     files: ['content.js']
@@ -64,7 +64,7 @@ function injectContentScript(tab, selectedText) {
       console.error('Error injecting script:', chrome.runtime.lastError.message);
       return;
     }
-    sendFactCheckMessage(tab.id, selectedText, tab.url);
+    initiateFactCheck(tab.id, selectedText, tab.url);
   });
 }
 
@@ -75,25 +75,25 @@ function injectContentScript(tab, selectedText) {
  * @param {string} text - The text selected by the user
  * @param {string} url - The URL of the current page
  */
-function sendFactCheckMessage(tabId, text, url) {
+function initiateFactCheck(tabId, text, url) {
   chrome.tabs.sendMessage(tabId, { action: 'showLoading' });
 
   chrome.storage.sync.get('apiKey', async (data) => {
     if (data.apiKey) {
       try {
-        const contextText = await fetchPageContent(tabId);
-        const response = await factCheckWithAI(text, contextText, url, data.apiKey);
-        console.log('Sending fact check result to content script:', response);
+        const pageContent = await getPageContent(tabId);
+        const result = await queryAI(text, pageContent, url, data.apiKey);
+        console.log('Sending fact check result to content script:', result);
         chrome.tabs.sendMessage(tabId, {
           action: 'factCheckResult',
-          data: response
+          data: result
         });
       } catch (error) {
         console.error('Error in fact checking:', error);
-        handleFactCheckError(tabId, error.message);
+        reportError(tabId, error.message);
       }
     } else {
-      handleFactCheckError(tabId, 'API Key not found. Please set it in the extension popup.');
+      reportError(tabId, 'API Key not found. Please set it in the extension popup.');
     }
   });
 }
@@ -104,7 +104,7 @@ function sendFactCheckMessage(tabId, text, url) {
  * @param {number} tabId - The ID of the current tab
  * @param {string} errorMessage - The error message to display
  */
-function handleFactCheckError(tabId, errorMessage) {
+function reportError(tabId, errorMessage) {
   chrome.tabs.sendMessage(tabId, {
     action: 'factCheckError',
     error: errorMessage
@@ -117,7 +117,7 @@ function handleFactCheckError(tabId, errorMessage) {
  * @param {number} tabId - The ID of the current tab
  * @returns {Promise<string>} The text content of the page
  */
-async function fetchPageContent(tabId) {
+async function getPageContent(tabId) {
   try {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tabId },
@@ -139,7 +139,7 @@ async function fetchPageContent(tabId) {
  * @param {string} apiKey - The Perplexity API key
  * @returns {Promise<string>} The fact check result
  */
-async function factCheckWithAI(text, contextText, url, apiKey) {
+async function queryAI(text, contextText, url, apiKey) {
   const systemPrompt = `You are a multilingual fact-checking assistant. Your primary tasks are:
 
 1. Detect the language of the given text.
@@ -176,26 +176,24 @@ If you cannot find enough reliable sources to fact-check the statement, say so e
       'authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: API_MODEL,
+      model: MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      max_tokens: MAX_TOKENS,
-      temperature: TEMPERATURE,
+      max_tokens: TOKEN_LIMIT,
+      temperature: TEMP,
       return_citations: true
     })
   };
 
-  const response = await fetch(API_ENDPOINT, options);
+  const response = await fetch(API_URL, options);
   const result = await response.json();
 
   console.log('Perplexity API response:', result);
 
   if (result.choices && result.choices.length > 0) {
-    const content = result.choices[0].message.content;
-    console.log('Perplexity API content:', content);
-    return content;
+    return result.choices[0].message.content;
   } else {
     throw new Error('Invalid response from Perplexity API');
   }
