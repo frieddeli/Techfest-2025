@@ -7,11 +7,28 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="apiKeySection">
+  <div class="header">
+    <h1>Fact Checker</h1>
+    <img id="settingsIcon" src="128.png" alt="Settings">
+  </div>
+  
+  <div id="apiKeySection" class="hidden">
     <label for="apiKey">Enter your Perplexity API Key:</label>
     <input type="text" id="apiKey" placeholder="API Key">
     <button id="saveApiKey">Save</button>
   </div>
+  
+  <div id="querySection">
+    <label for="queryText">Enter text to fact check:</label>
+    <textarea id="queryText" rows="10" placeholder="Enter text to fact check with Perplexity AI..."></textarea>
+    <button id="submitQuery">Check Facts</button>
+  </div>
+  
+  <div id="resultSection" class="hidden">
+    <h3>Fact Check Result:</h3>
+    <div id="factCheckResult"></div>
+  </div>
+  
   <div id="status"></div>
   <script src="popup.js"></script>
 </body>

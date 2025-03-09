@@ -238,7 +238,7 @@
   }
 
   /**
-   * Shows an error message in the fact check box.
+   * Shows an error message in the fact check box using the same window and formatting as displayResult().
    * 
    * @param {string} message - The error message to display
    */
@@ -247,15 +247,17 @@
     if (!resultContainer) {
       resultContainer = createContainer();
     }
-    resultContainer.innerHTML = `
-      <div class="fact-check-header">
-        <h2>Error</h2>
-        <button id="${CLOSE_BTN_ID}">×</button>
-      </div>
-      <p>${message}</p>
-    `;
-    resultContainer.style.display = 'block';
-    setupCloseButton();
+    
+    // Create a data object similar to what parseResult() would return
+    const data = {
+      truthPercentage: 'N/A',
+      factCheck: message,
+      context: 'An error occurred while processing your request.',
+      sources: []
+    };
+    
+    // Use the same updateContainer function as displayResult
+    updateContainer(data);
   }
 
   /**
