@@ -4,7 +4,8 @@
 
 **This was created as part of the CCDS 2025 Techfest Hackathon**
 
-![UI Preview](insert-image-url-here)  
+![image](https://github.com/user-attachments/assets/c5b42927-3357-4f85-8ce0-2120d41e8389)
+
 
 ---
 
