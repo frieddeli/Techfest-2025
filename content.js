@@ -60,6 +60,19 @@
           showSecondaryResult(request.data);
           sendResponse({ success: true });
           break;
+        case 'scrapeYouTubeTranscript':
+          console.log('Scraping YouTube transcript');
+          scrapeYouTubeTranscript()
+            .then(transcript => {
+              console.log('Transcript scraped successfully');
+              sendResponse({ success: true, transcript });
+            })
+            .catch(error => {
+              console.error('Error scraping transcript:', error);
+              sendResponse({ success: false, error: error.message });
+            });
+          return true; // Indicates we'll respond asynchronously
+          break;
         default:
           console.log('Unknown action:', request.action);
       }
@@ -672,6 +685,459 @@ ${data.sources.map(source => `${source.index}. ${source.title} - ${source.url}`)
         console.log('Secondary close button not found');
       }
     }, BTN_DELAY);
+  }
+  
+  /**
+   * Scrapes the transcript from a YouTube video page.
+   * 
+   * @returns {Promise<string>} The transcript text
+   */
+  async function scrapeYouTubeTranscript() {
+    return new Promise((resolve, reject) => {
+      // Check if we're on a YouTube video page
+      if (!window.location.href.includes('youtube.com/watch')) {
+        reject(new Error('Not a YouTube video page'));
+        return;
+      }
+      
+      console.log('Attempting to scrape YouTube transcript');
+      
+      // First, try to find an already open transcript panel
+      let transcriptPanel = document.querySelector('ytd-transcript-renderer, ytd-transcript-search-panel-renderer');
+      
+      if (transcriptPanel) {
+        console.log('Transcript panel already open, extracting text');
+        extractTranscriptText(transcriptPanel)
+          .then(resolve)
+          .catch(reject);
+        return;
+      }
+      
+      // Try to find and click "more" buttons first, then look for transcript
+      tryFindingTranscriptWithMoreButtons(resolve, reject);
+    });
+  }
+  
+  /**
+   * Tries to find and click "more" buttons, then look for transcript button.
+   * 
+   * @param {Function} resolve - The promise resolve function
+   * @param {Function} reject - The promise reject function
+   */
+  function tryFindingTranscriptWithMoreButtons(resolve, reject) {
+    // First, try to find and click any "Show more" or "...more" buttons
+    const moreButtonClicked = tryClickingMoreButton();
+    
+    // Wait a bit for the UI to update after clicking "more" buttons
+    setTimeout(() => {
+      // Try to find the transcript button directly
+      const directTranscriptButton = findTranscriptButtonDirect();
+      
+      if (directTranscriptButton) {
+        try {
+          console.log('Found direct transcript button, clicking it');
+          // Make sure it's a valid element with a click method
+          if (typeof directTranscriptButton.click === 'function') {
+            directTranscriptButton.click();
+          } else {
+            // If it doesn't have a click method, try other approaches
+            console.log('Element does not have click method, trying alternative approaches');
+            // Try using dispatchEvent
+            const clickEvent = new MouseEvent('click', {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            directTranscriptButton.dispatchEvent(clickEvent);
+          }
+          
+          // Wait for the transcript panel to appear
+          setTimeout(() => {
+            const transcriptPanel = document.querySelector('ytd-transcript-renderer, ytd-transcript-search-panel-renderer');
+            
+            if (transcriptPanel) {
+              console.log('Transcript panel found after clicking direct button, extracting text');
+              extractTranscriptText(transcriptPanel)
+                .then(resolve)
+                .catch(reject);
+            } else {
+              // If transcript panel didn't appear, try the more actions method
+              tryMoreActionsMethod(resolve, reject);
+            }
+          }, 1000);
+        } catch (error) {
+          console.error('Error clicking transcript button:', error);
+          // If there was an error clicking the button, try the more actions method
+          tryMoreActionsMethod(resolve, reject);
+        }
+      } else {
+        // If no direct transcript button was found, try the more actions method
+        tryMoreActionsMethod(resolve, reject);
+      }
+    }, moreButtonClicked ? 1000 : 0); // Wait longer if we clicked a "more" button
+  }
+  
+  /**
+   * Tries to find and click any "Show more" or "...more" buttons in the page.
+   * 
+   * @returns {boolean} True if a "more" button was found and clicked
+   */
+  function tryClickingMoreButton() {
+    console.log('Looking for "more" buttons to expand content');
+    
+    // Look for elements containing "more" text that might be buttons
+    const moreButtonSelectors = [
+      'button',
+      'tp-yt-paper-button',
+      'yt-formatted-string[role="button"]',
+      'div[role="button"]',
+      'span[role="button"]',
+      'a[role="button"]'
+    ];
+    
+    let moreButtonFound = false;
+    
+    // Try each selector
+    for (const selector of moreButtonSelectors) {
+      const elements = document.querySelectorAll(selector);
+      
+      for (const element of elements) {
+        // Check if the element is visible and contains "more" text
+        if (element.offsetParent !== null && 
+            element.textContent && 
+            (element.textContent.toLowerCase().includes('more') || 
+             element.textContent.includes('...') || 
+             element.textContent.includes('…'))) {
+          
+          console.log('Found potential "more" button:', element);
+          
+          // Click the button
+          element.click();
+          moreButtonFound = true;
+          
+          // We might have multiple "more" buttons, so continue looking
+        }
+      }
+    }
+    
+    // Also look for the "Show transcript" button in the description
+    const descriptionElement = document.querySelector('#description, ytd-video-description-renderer');
+    if (descriptionElement) {
+      const moreButtons = Array.from(descriptionElement.querySelectorAll('button, span, div, yt-formatted-string'))
+        .filter(el => 
+          el.offsetParent !== null && 
+          el.textContent && 
+          (el.textContent.toLowerCase().includes('more') || 
+           el.textContent.includes('...') || 
+           el.textContent.includes('…'))
+        );
+      
+      for (const button of moreButtons) {
+        console.log('Found "more" button in description:', button);
+        button.click();
+        moreButtonFound = true;
+      }
+    }
+    
+    return moreButtonFound;
+  }
+  
+  /**
+   * Directly searches for transcript button without clicking "more" buttons first.
+   * 
+   * @returns {HTMLElement|null} The transcript button element or null if not found
+   */
+  function findTranscriptButtonDirect() {
+    // Try various selectors that might contain the transcript button
+    const possibleButtons = [
+      ...document.querySelectorAll('button'),
+      ...document.querySelectorAll('yt-formatted-string'),
+      ...document.querySelectorAll('span'),
+      ...document.querySelectorAll('div[role="button"]')
+    ];
+    
+    // Look for elements containing "transcript" text
+    for (const element of possibleButtons) {
+      if (element.textContent && 
+          element.textContent.toLowerCase().includes('transcript') && 
+          element.offsetParent !== null) { // Check if element is visible
+        console.log('Found potential transcript button:', element);
+        return element;
+      }
+    }
+    
+    // Try to find the engagement panel section with transcript
+    const panels = document.querySelectorAll('ytd-engagement-panel-section-list-renderer');
+    for (const panel of panels) {
+      if (panel.textContent && panel.textContent.toLowerCase().includes('transcript')) {
+        const buttons = panel.querySelectorAll('button, div[role="button"]');
+        if (buttons.length > 0) {
+          console.log('Found transcript button in engagement panel:', buttons[0]);
+          return buttons[0];
+        }
+      }
+    }
+    
+    // Look specifically in the description area
+    const descriptionElement = document.querySelector('#description, ytd-video-description-renderer');
+    if (descriptionElement) {
+      const transcriptButtons = Array.from(descriptionElement.querySelectorAll('button, span, div, yt-formatted-string'))
+        .filter(el => 
+          el.offsetParent !== null && 
+          el.textContent && 
+          el.textContent.toLowerCase().includes('transcript')
+        );
+      
+      if (transcriptButtons.length > 0) {
+        console.log('Found transcript button in description:', transcriptButtons[0]);
+        return transcriptButtons[0];
+      }
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Tries to open the transcript using the more actions button method.
+   * 
+   * @param {Function} resolve - The promise resolve function
+   * @param {Function} reject - The promise reject function
+   */
+  function tryMoreActionsMethod(resolve, reject) {
+    console.log('Trying more actions method to find transcript');
+    
+    // Try multiple selectors for the more actions button
+    const moreActionsSelectors = [
+      'button.ytp-button[aria-label="More actions"]',
+      'button.ytp-settings-button',
+      'button[aria-label="More actions"]',
+      'button[aria-label="Settings"]',
+      'button.ytp-button[data-tooltip-target-id="ytp-settings-button"]',
+      'button.ytp-settings-button[aria-haspopup="true"]'
+    ];
+    
+    let moreActionsButton = null;
+    for (const selector of moreActionsSelectors) {
+      const button = document.querySelector(selector);
+      if (button && button.offsetParent !== null) { // Check if button is visible
+        moreActionsButton = button;
+        console.log(`Found more actions button using selector: ${selector}`, button);
+        break;
+      }
+    }
+    
+    // If still not found, try to find any button that might be the settings/more actions
+    if (!moreActionsButton) {
+      const allButtons = document.querySelectorAll('button.ytp-button');
+      for (const button of allButtons) {
+        if (button.offsetParent !== null) { // Check if button is visible
+          console.log('Potential more actions button:', button);
+          if (button.querySelector('svg') || 
+              button.textContent.includes('...') || 
+              button.getAttribute('aria-label')?.includes('action') ||
+              button.getAttribute('aria-label')?.includes('setting')) {
+            moreActionsButton = button;
+            console.log('Found potential more actions button with icon or label:', button);
+            break;
+          }
+        }
+      }
+    }
+    
+    if (!moreActionsButton) {
+      // Try one more approach - look for the player controls
+      const playerControls = document.querySelector('.ytp-chrome-bottom, .ytp-chrome-controls');
+      if (playerControls) {
+        const buttons = playerControls.querySelectorAll('button');
+        // Usually the more actions/settings button is one of the last buttons
+        for (let i = buttons.length - 1; i >= 0; i--) {
+          if (buttons[i].offsetParent !== null) { // Check if button is visible
+            moreActionsButton = buttons[i];
+            console.log('Found potential more actions button in player controls:', buttons[i]);
+            break;
+          }
+        }
+      }
+    }
+    
+    if (!moreActionsButton) {
+      // Try to find transcript directly in the page
+      const transcriptPanel = findTranscriptPanelInPage();
+      if (transcriptPanel) {
+        console.log('Found transcript panel directly in page, extracting text');
+        extractTranscriptText(transcriptPanel)
+          .then(resolve)
+          .catch(reject);
+        return;
+      }
+      
+      reject(new Error('Could not find more actions button or transcript panel'));
+      return;
+    }
+    
+    // Click the more actions button to open the menu
+    console.log('Clicking more actions button');
+    moreActionsButton.click();
+    
+    // Wait for the menu to appear and find the "Show transcript" option
+    setTimeout(() => {
+      // Try multiple selectors for menu items
+      const menuItemSelectors = [
+        '.ytp-menuitem',
+        '.ytp-panel-menu .ytp-menuitem',
+        '.ytp-settings-menu .ytp-menuitem',
+        'div[role="menuitem"]'
+      ];
+      
+      let menuItems = [];
+      for (const selector of menuItemSelectors) {
+        const items = document.querySelectorAll(selector);
+        if (items.length > 0) {
+          menuItems = Array.from(items);
+          console.log(`Found menu items using selector: ${selector}`, items);
+          break;
+        }
+      }
+      
+      // If no menu items found, try to find any elements that appeared after clicking
+      if (menuItems.length === 0) {
+        const possibleMenus = document.querySelectorAll('.ytp-popup, .ytp-settings-menu, .ytp-panel');
+        for (const menu of possibleMenus) {
+          if (menu.offsetParent !== null) { // Check if menu is visible
+            menuItems = Array.from(menu.querySelectorAll('div, span, button'));
+            console.log('Found potential menu items in popup:', menuItems);
+            break;
+          }
+        }
+      }
+      
+      const showTranscriptItem = menuItems.find(item => {
+        return item.textContent && item.textContent.toLowerCase().includes('transcript');
+      });
+      
+      if (!showTranscriptItem) {
+        // Close the menu by clicking elsewhere
+        document.body.click();
+        
+        // Try to find transcript directly in the page as a last resort
+        const transcriptPanel = findTranscriptPanelInPage();
+        if (transcriptPanel) {
+          console.log('Found transcript panel directly in page, extracting text');
+          extractTranscriptText(transcriptPanel)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        
+        reject(new Error('Could not find Show transcript option'));
+        return;
+      }
+      
+      // Click the "Show transcript" option
+      console.log('Clicking Show transcript option');
+      showTranscriptItem.click();
+      
+      // Wait for the transcript panel to appear
+      setTimeout(() => {
+        const transcriptPanel = document.querySelector('ytd-transcript-renderer, ytd-transcript-search-panel-renderer');
+        
+        if (!transcriptPanel) {
+          // Try to find transcript directly in the page as a last resort
+          const directPanel = findTranscriptPanelInPage();
+          if (directPanel) {
+            console.log('Found transcript panel directly in page after clicking, extracting text');
+            extractTranscriptText(directPanel)
+              .then(resolve)
+              .catch(reject);
+            return;
+          }
+          
+          reject(new Error('Transcript panel did not appear'));
+          return;
+        }
+        
+        console.log('Transcript panel found, extracting text');
+        extractTranscriptText(transcriptPanel)
+          .then(resolve)
+          .catch(reject);
+      }, 1500);
+    }, 1000);
+  }
+  
+  /**
+   * Tries to find a transcript panel directly in the page.
+   * 
+   * @returns {HTMLElement|null} The transcript panel element or null if not found
+   */
+  function findTranscriptPanelInPage() {
+    // Try various selectors that might contain the transcript
+    const selectors = [
+      'ytd-transcript-renderer',
+      'ytd-transcript-search-panel-renderer',
+      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-transcript"]',
+      '#engagement-panel-transcript'
+    ];
+    
+    for (const selector of selectors) {
+      const panel = document.querySelector(selector);
+      if (panel && panel.offsetParent !== null) { // Check if panel is visible
+        console.log(`Found transcript panel using selector: ${selector}`, panel);
+        return panel;
+      }
+    }
+    
+    // Try to find any panel that might contain transcript
+    const panels = document.querySelectorAll('ytd-engagement-panel-section-list-renderer');
+    for (const panel of panels) {
+      if (panel.offsetParent !== null && // Check if panel is visible
+          panel.textContent && 
+          panel.textContent.toLowerCase().includes('transcript')) {
+        console.log('Found potential transcript panel by content:', panel);
+        return panel;
+      }
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Extracts the transcript text from the transcript panel.
+   * 
+   * @param {HTMLElement} transcriptPanel - The transcript panel element
+   * @returns {Promise<string>} The transcript text
+   */
+  async function extractTranscriptText(transcriptPanel) {
+    return new Promise((resolve, reject) => {
+      // Wait a bit for the transcript content to fully load
+      setTimeout(() => {
+        try {
+          // Find all transcript segments
+          const segments = transcriptPanel.querySelectorAll('ytd-transcript-segment-renderer');
+          
+          if (!segments || segments.length === 0) {
+            reject(new Error('No transcript segments found'));
+            return;
+          }
+          
+          console.log(`Found ${segments.length} transcript segments`);
+          
+          // Extract text from each segment
+          const transcriptLines = Array.from(segments).map(segment => {
+            const textElement = segment.querySelector('.segment-text');
+            return textElement ? textElement.textContent.trim() : '';
+          }).filter(text => text); // Remove empty lines
+          
+          // Join the lines into a single text
+          const transcriptText = transcriptLines.join(' ');
+          
+          console.log('Extracted transcript text:', transcriptText.substring(0, 100) + '...');
+          resolve(transcriptText);
+        } catch (error) {
+          console.error('Error extracting transcript text:', error);
+          reject(error);
+        }
+      }, 1000);
+    });
   }
 
   /**
