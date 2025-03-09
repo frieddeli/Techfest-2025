@@ -86,10 +86,10 @@ function storeKey(apiKey, statusElement) {
 }
 
 /**
- * Submits text for fact checking using the Perplexity API.
+ * Submits text for fact checking using the Perplexity API and shows result in a new popup.
  * 
  * @param {string} text - The text to fact check
- * @param {HTMLElement} resultElement - The element to display the result in
+ * @param {HTMLElement} resultElement - The element to display the loading status in
  * @param {HTMLElement} resultSection - The section containing the result
  * @param {HTMLElement} statusElement - The status display element
  */
@@ -105,9 +105,75 @@ function submitFactCheck(text, resultElement, resultSection, statusElement) {
       resultElement.innerHTML = '<p>Loading... This may take a few moments.</p>';
       resultSection.classList.remove('hidden');
 
-      const result = await queryAI(text, '', window.location.href, data.apiKey);
-      
-      resultElement.innerHTML = formatResult(result);
+      // Get the active tab to send the message to
+      chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
+        if (tabs.length === 0) {
+          throw new Error('No active tab found');
+        }
+        
+        const result = await queryAI(text, '', window.location.href, data.apiKey);
+        
+        // First check if content script is already injected
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'checkInjection' }, (response) => {
+          const injectAndSendMessage = () => {
+            // Inject the content script
+            chrome.scripting.executeScript({
+              target: { tabId: tabs[0].id },
+              files: ['content.js']
+            }, () => {
+              if (chrome.runtime.lastError) {
+                console.error('Error injecting script:', chrome.runtime.lastError);
+                showStatus(statusElement, `Error: ${chrome.runtime.lastError.message}`, 'error');
+                return;
+              }
+              
+              // Send message to content script to show the result in a new popup
+              console.log('Content script injected, sending message:', tabs[0].id);
+              setTimeout(() => {
+                chrome.tabs.sendMessage(tabs[0].id, {
+                  action: 'showSecondaryResult',
+                  data: result
+                }, (response) => {
+                  // Check if there was an error sending the message
+                  if (chrome.runtime.lastError) {
+                    console.error('Error sending message:', chrome.runtime.lastError);
+                    showStatus(statusElement, `Error: ${chrome.runtime.lastError.message}`, 'error');
+                  } else {
+                    console.log('Message sent successfully, response:', response);
+                  }
+                });
+              }, 500); // Give the content script time to initialize
+            });
+          };
+          
+          if (chrome.runtime.lastError || !response || !response.injected) {
+            console.log('Content script not injected, injecting now');
+            injectAndSendMessage();
+          } else {
+            console.log('Content script already injected, sending message directly');
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'showSecondaryResult',
+              data: result
+            }, (response) => {
+              if (chrome.runtime.lastError) {
+                console.error('Error sending message to existing content script:', chrome.runtime.lastError);
+                // Try injecting the script anyway
+                injectAndSendMessage();
+              } else {
+                console.log('Message sent successfully to existing content script, response:', response);
+              }
+            });
+          }
+        });
+        
+        // Update status in the popup
+        showStatus(statusElement, 'Fact check complete! Results shown on page.', 'success');
+        
+        // Hide the result section in the popup after a short delay
+        setTimeout(() => {
+          resultSection.classList.add('hidden');
+        }, 1500);
+      });
     } catch (error) {
       console.error('Error in fact checking:', error);
       resultSection.classList.add('hidden');

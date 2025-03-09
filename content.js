@@ -9,6 +9,8 @@
   const CLOSE_BTN_ID = 'close-fact-check';
   const COPY_BTN_ID = 'copy-result';
   const TRUTH_METER_ID = 'truth-percentage';
+  const SECONDARY_CONTAINER_ID = 'perplexity-secondary-box';
+  const SECONDARY_CLOSE_BTN_ID = 'close-secondary';
   const MIN_SIZE = 200;
   const EDGE_MARGIN = 10;
   const BTN_DELAY = 100;
@@ -22,26 +24,51 @@
 
   // State variables
   let resultContainer = null;
+  let secondaryContainer = null;
+  
+  // Track mouse position for context menu positioning
+  window.lastMousePosition = { x: 100, y: 100 };
+  document.addEventListener('mousemove', (e) => {
+    window.lastMousePosition = { x: e.clientX, y: e.clientY };
+  });
 
   /**
    * Listens for messages from the background script.
    */
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('Received message in content script:', request);
-    switch (request.action) {
-      case 'checkInjection':
-        sendResponse({ injected: true });
-        break;
-      case 'showLoading':
-        displayLoader();
-        break;
-      case 'factCheckResult':
-        displayResult(request.data);
-        break;
-      case 'factCheckError':
-        displayError(request.error);
-        break;
+    try {
+      switch (request.action) {
+        case 'checkInjection':
+          console.log('Responding to checkInjection');
+          sendResponse({ injected: true });
+          break;
+        case 'showLoading':
+          console.log('Showing loader');
+          displayLoader();
+          break;
+        case 'factCheckResult':
+          console.log('Displaying fact check result');
+          displayResult(request.data);
+          break;
+        case 'factCheckError':
+          console.log('Displaying error');
+          displayError(request.error);
+          break;
+        case 'showSecondaryResult':
+          console.log('Showing secondary result');
+          showSecondaryResult(request.data);
+          sendResponse({ success: true });
+          break;
+        default:
+          console.log('Unknown action:', request.action);
+      }
+    } catch (error) {
+      console.error('Error handling message:', error);
+      sendResponse({ error: error.message });
     }
+    // Return true to indicate we'll respond asynchronously
+    return true;
   });
 
   /**
@@ -511,11 +538,257 @@ ${data.sources.map(source => `${source.index}. ${source.title} - ${source.url}`)
   }
 
   /**
+   * Creates the secondary popup box element.
+   * 
+   * @returns {HTMLElement} The created secondary popup box
+   */
+  function createSecondaryContainer() {
+    const box = document.createElement('div');
+    box.id = SECONDARY_CONTAINER_ID;
+    document.body.appendChild(box);
+    makeInteractive(box);
+    return box;
+  }
+
+  /**
+   * Shows loading indicator in the secondary popup box with context menu styling.
+   */
+  function displaySecondaryLoader() {
+    if (!secondaryContainer) {
+      secondaryContainer = createSecondaryContainer();
+    }
+    
+    // Position near the mouse cursor if possible
+    if (window.lastMousePosition) {
+      secondaryContainer.style.top = `${window.lastMousePosition.y}px`;
+      secondaryContainer.style.left = `${window.lastMousePosition.x}px`;
+    }
+    
+    secondaryContainer.innerHTML = `
+      <div class="context-menu-header">
+        <span class="truth-indicator" style="background-color: gray;"></span>
+        <span class="truth-text">Fact Checking...</span>
+        <button id="${SECONDARY_CLOSE_BTN_ID}" class="context-close">×</button>
+      </div>
+      <div class="context-menu-content">
+        <div class="context-section" style="text-align: center;">
+          <p class="context-info">Loading... This may take a few moments.</p>
+          <div class="loader" style="margin: 15px auto;"></div>
+        </div>
+      </div>
+    `;
+    secondaryContainer.style.display = 'block';
+    setupSecondaryCloseButton();
+  }
+
+  /**
+   * Updates the secondary popup box with the parsed result in a context menu style format.
+   * 
+   * @param {Object} data - The parsed result data
+   */
+  function updateSecondaryContainer(data) {
+    console.log('Updating secondary popup box with:', data);
+    const colorCode = getColorForTruth(data.truthPercentage);
+    
+    // Position near the mouse cursor if possible
+    if (window.lastMousePosition) {
+      secondaryContainer.style.top = `${window.lastMousePosition.y}px`;
+      secondaryContainer.style.left = `${window.lastMousePosition.x}px`;
+    }
+    
+    secondaryContainer.innerHTML = `
+      <div class="context-menu-header">
+        <span class="truth-indicator" style="background-color: ${colorCode};"></span>
+        <span class="truth-text">Truth: ${data.truthPercentage}</span>
+        <button id="${SECONDARY_CLOSE_BTN_ID}" class="context-close">×</button>
+      </div>
+      <div class="context-menu-content">
+        <div class="context-section">
+          <p class="context-fact">${data.factCheck}</p>
+        </div>
+        <div class="context-section">
+          <p class="context-info">${data.context}</p>
+        </div>
+        ${data.sources.length > 0 ? `
+        <div class="context-section sources-section">
+          <div class="sources-list">
+            ${data.sources.map(source => `
+              <a href="${source.url}" target="_blank" class="source-link">
+                <span class="source-number">[${source.index}]</span> ${source.title}
+              </a>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+      </div>
+    `;
+    
+    secondaryContainer.style.display = 'block';
+    setupSecondaryCloseButton();
+  }
+
+  /**
+   * Shows result in the secondary popup box, closing the existing popup first.
+   * Uses the same format as the right-click context menu search result.
+   * 
+   * @param {string} result - The raw result data
+   */
+  function showSecondaryResult(result) {
+    console.log('Showing result in secondary window:', result);
+    
+    // Close the existing popup if it exists
+    if (resultContainer) {
+      resultContainer.style.display = 'none';
+    }
+    
+    // First show the loader
+    displaySecondaryLoader();
+    
+    // Then after a delay, show the result
+    setTimeout(() => {
+      if (!secondaryContainer) {
+        secondaryContainer = createSecondaryContainer();
+      }
+      const parsedData = parseResult(result);
+      updateSecondaryContainer(parsedData);
+    }, 1500); // Simulate loading time
+  }
+
+  /**
+   * Adds a click listener to the secondary close button.
+   */
+  function setupSecondaryCloseButton() {
+    setTimeout(() => {
+      const closeBtn = document.getElementById(SECONDARY_CLOSE_BTN_ID);
+      if (closeBtn) {
+        console.log('Secondary close button found, adding event listener');
+        closeBtn.addEventListener('click', () => {
+          console.log('Secondary close button clicked');
+          if (secondaryContainer) {
+            secondaryContainer.style.display = 'none';
+          }
+        });
+      } else {
+        console.log('Secondary close button not found');
+      }
+    }, BTN_DELAY);
+  }
+
+  /**
    * Creates and appends the styles for the fact check box.
    */
   const style = document.createElement('style');
   style.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Satoshi:wght@400;700&display=swap');
+
+    /* Context menu styles for secondary container */
+    #${SECONDARY_CONTAINER_ID} {
+      position: fixed;
+      top: 100px;
+      left: 100px;
+      width: 320px;
+      max-height: 450px;
+      overflow-y: auto;
+      background-color: ${isDarkMode() ? '#222' : '#fff'};
+      color: ${isDarkMode() ? '#eee' : '#333'} !important;
+      border: 1px solid ${isDarkMode() ? '#444' : '#ddd'};
+      border-radius: 8px;
+      padding: 0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 9999;
+      font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }
+    
+    /* Context menu header */
+    .context-menu-header {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid ${isDarkMode() ? '#444' : '#eee'};
+      background-color: ${isDarkMode() ? '#333' : '#f8f8f8'};
+      border-radius: 8px 8px 0 0;
+    }
+    
+    .truth-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .truth-text {
+      font-weight: 600;
+      font-size: 14px;
+      flex-grow: 1;
+      color: ${isDarkMode() ? '#eee' : '#333'} !important;
+    }
+    
+    .context-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: ${isDarkMode() ? '#aaa' : '#666'} !important;
+      padding: 0;
+      margin-left: 8px;
+    }
+    
+    /* Context menu content */
+    .context-menu-content {
+      padding: 12px 16px;
+    }
+    
+    .context-section {
+      margin-bottom: 16px;
+    }
+    
+    .context-section:last-child {
+      margin-bottom: 0;
+    }
+    
+    .context-fact {
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0 0 8px 0;
+      color: ${isDarkMode() ? '#eee' : '#333'} !important;
+    }
+    
+    .context-info {
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 0;
+      color: ${isDarkMode() ? '#ccc' : '#666'} !important;
+    }
+    
+    .sources-section {
+      border-top: 1px solid ${isDarkMode() ? '#444' : '#eee'};
+      padding-top: 12px;
+    }
+    
+    .sources-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .source-link {
+      font-size: 13px;
+      color: ${isDarkMode() ? '#add8e6' : '#0066cc'} !important;
+      text-decoration: none;
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .source-link:hover {
+      text-decoration: underline;
+    }
+    
+    .source-number {
+      color: ${isDarkMode() ? '#aaa' : '#666'} !important;
+      margin-right: 4px;
+    }
 
     #${CONTAINER_ID} {
       position: fixed;
